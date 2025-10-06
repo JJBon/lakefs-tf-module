@@ -126,3 +126,21 @@ variable "master_username" {
   type    = string
   default = "lakefsadmin"
 }
+
+variable "acm_certificate_arn" {
+  type        = string
+  default     = ""
+  description = "Optional: existing ACM certificate ARN to use for HTTPS. If empty and import_cert = true, Terraform will import a local certificate from the certs/ folder into ACM."
+}
+
+variable "import_cert" {
+  type        = bool
+  default     = false
+  description = "If true, import a PEM cert and private key from certs/mycert.crt and certs/mycert.key into ACM (dev/testing)."
+}
+
+variable "cert_path" {
+  type        = string
+  default     = "certs"
+  description = "Relative path (from module) to local cert files for import (mycert.crt, mycert.key, optionally chain.pem)."
+}

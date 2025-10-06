@@ -6,7 +6,6 @@
 # - ALB in front of ECS service
 # - S3 as blockstore; task role is granted access to a specific bucket prefix
 #
-# NOTE: This is a minimal, opinionated starter to get you going. You can split
 #       into modules for prod use.
 # ────────────────────────────────────────────────────────────────────────────────
 
@@ -182,7 +181,6 @@ resource "aws_iam_role_policy_attachment" "s3_attach" {
   role       = aws_iam_role.task_role.name
   policy_arn = aws_iam_policy.s3_blockstore.arn
 }
-
 # Security group for ECS tasks
 resource "aws_security_group" "ecs_tasks" {
   name   = "${var.name}-ecs-tasks"
@@ -210,6 +208,12 @@ resource "aws_security_group" "alb" {
   ingress {
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -246,6 +250,35 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.this.arn
   }
 }
+
+# Optional: import a local PEM cert into ACM for dev/testing
+resource "aws_acm_certificate" "imported" {
+  count       = var.import_cert ? 1 : 0
+  private_key = file("${path.module}/${var.cert_path}/mycert.key")
+  certificate_body = file("${path.module}/${var.cert_path}/mycert.crt")
+  # If you have a CA chain, place it at certs/chain.pem; otherwise omit the file.
+  certificate_chain = try(file("${path.module}/${var.cert_path}/chain.pem"), null)
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  count             = (length(var.acm_certificate_arn) > 0 || var.import_cert) ? 1 : 0
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+
+  certificate_arn = length(var.acm_certificate_arn) > 0 ? var.acm_certificate_arn : (var.import_cert ? aws_acm_certificate.imported[0].arn : "")
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this.arn
+  }
+
+}
+
 
 
 
